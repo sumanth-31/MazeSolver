@@ -8,6 +8,9 @@ import lombok.Getter;
 
 import com.uga.mazesolvingagent.Constants;
 
+/*
+ * This class captures the environment created and provides helper functions that allow retrieval of specific information from the environment.
+ */
 public class Maze {
 
     private static final int[][] DIRECTIONS = new int[][]{
@@ -100,6 +103,9 @@ public class Maze {
     public void updateObstacle(final int rowInd, final int colInd, final ObstacleUpdate update) {
         Node node = nodes[rowInd][colInd];
         node.setObstacle(ObstacleUpdate.ADD.equals(update));
+        if (node.isObstacle()) {
+            node.setG(Constants.MAX_VALUE);
+        }
     }
 
     public Node getNode(final int rowInd, final int colInd) {
@@ -132,14 +138,5 @@ public class Maze {
             }
         }
         return rhsValues;
-    }
-
-    public void print() {
-        System.out.println("Grid:");
-        for (int i = 0; i < m; i++) {
-            for (int j = 0; j < n; j++) {
-                System.out.println(nodes[i][j]);
-            }
-        }
     }
 }

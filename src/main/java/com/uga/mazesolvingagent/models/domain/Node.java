@@ -5,10 +5,13 @@ import lombok.Data;
 import lombok.Getter;
 import lombok.Setter;
 
+/*
+ * Represents a node in the maze graph. Also has helper functions to retrieve specific information about the node.
+ */
 @Data
 public class Node {
-    private int g;
-    private int rhs;
+    private int g; // The path-cost from the start node to the current node.
+    private int rhs; // RHS value represents the look-ahead cost from the LPA* algorithm. It represents the shortest possible value for g, and is used for evaluation at run-time.
     private boolean isObstacle;
     @Getter(AccessLevel.NONE)
     @Setter(AccessLevel.NONE)
@@ -28,6 +31,7 @@ public class Node {
         return minGRhs + heuristic;
     }
 
+    // Manhattan distance is the heuristic used in this implementation.
     private int getManhattanDistance(final int x1, final int x2, final int y1, final int y2) {
         return Math.abs(x1 - x2) + Math.abs(y1 - y2);
     }

@@ -14,12 +14,21 @@ import com.uga.mazesolvingagent.models.domain.NeighborNode;
 import com.uga.mazesolvingagent.models.domain.Node;
 import com.uga.mazesolvingagent.models.domain.ObstacleUpdate;
 import com.uga.mazesolvingagent.models.domain.Solution;
+import com.uga.mazesolvingagent.models.dto.ObstacleUpdateData;
 import com.uga.mazesolvingagent.Constants;
 
+/*
+ * The main class that implements the LPA* algorithm to solve maze environments. It contains the business logic of the application.
+ */
 public class MazeSolverService {
 
+    // The comparator that helps the priority queue order the nodes in the right order (predecessors before successors).
     private static final Comparator<Node> NODE_PRIORITIZER = (node1, node2) -> node1.getKey() - node2.getKey();
 
+    /*
+     * Updates the node's RHS value, and also inserts the node into the queue if it requires further processing (if it is inconsistent)
+     * This method is only concerned with the RHS values of the nodes, and doesn't modify the G values.
+     */
     private void updateNode(final Maze maze, final Node node, final PriorityQueue<Node> queue) {
         if (!node.equals(maze.getStartNode())) {
             List<NeighborNode> neighbors = maze.getNeighbors(node);
@@ -32,22 +41,21 @@ public class MazeSolverService {
         queue.remove(node);
         if (!node.isConsistent()) {
             queue.add(node);
-        } else {
-            System.out.println("Finalized g = " + node.getG() + " for " + node.getRowInd() + " " + node.getColInd());
         }
     }
 
+    /*
+     * This is the main method that evaluates the graph (or the sub-graph required).
+     */
     private int calculateShortestPath(final Maze maze, final PriorityQueue<Node> queue) {
         Node goalNode = maze.getGoalNode();
         Set<Node> nodesEvaluated = new HashSet<>();
-        while (!queue.isEmpty() || !goalNode.isConsistent()) {
+        while (!queue.isEmpty()) {
             Node currentNode = queue.poll();
             nodesEvaluated.add(currentNode);
             if (currentNode.isObstacle()) {
                 continue;
             }
-            System.out.println("Processing node " + currentNode.getRowInd() + " " + currentNode.getColInd() + " g = "
-                    + currentNode.getG() + " rhs = " + currentNode.getRhs());
             if (currentNode.getG() > currentNode.getRhs()) {
                 currentNode.setG(currentNode.getRhs());
             } else {
@@ -60,11 +68,13 @@ public class MazeSolverService {
         return nodesEvaluated.size();
     }
 
+    /*
+     * This method re-builds the shortest path based on the information obtained when the shortest path was calculated.
+     */
     private List<int[]> getPath(final Maze maze) {
         List<int[]> path = new ArrayList<>();
         Stack<Node> pathStack = new Stack<>();
         if (maze.getGoalNode().getG() >= Constants.MAX_VALUE) {
-            System.out.println("No Solution Exists");
             return path;
         }
         Node currentNode = maze.getGoalNode();
@@ -77,34 +87,44 @@ public class MazeSolverService {
                 }
             }
             if (optimalNeighbor == null) {
-                // This is unexpected because this can only happen when a solution doesn't exist, which should've been detected before the loop
+                // This is unexpected because this can only happen when a solution doesn't exist, which should've been detected before the loop. This code should not be triggered.
                 throw new RuntimeException("Unexpected case occurred!");
             }
             currentNode = optimalNeighbor.getNode();
             pathStack.push(currentNode);
         }
-        System.out.println("Path:");
         while (!pathStack.isEmpty()) {
             currentNode = pathStack.pop();
             path.add(new int[] { currentNode.getRowInd(), currentNode.getColInd() });
-            System.out.print("(" + currentNode.getRowInd() + ", " + currentNode.getColInd() + ") -> ");
         }
         path.add(new int[] { maze.getGoalNode().getRowInd(), maze.getGoalNode().getColInd() });
-        System.out.print("(" + maze.getGoalNode().getRowInd() + "," + maze.getGoalNode().getColInd() + ")");
-        System.out.println("Goal g = " + maze.getGoalNode().getG() + " rhs = " + maze.getGoalNode().getRhs());
         return path;
     }
 
-    public Solution updateObstacle(final Maze maze, final int rowInd, final int colInd, final ObstacleUpdate update) {
-        maze.updateObstacle(rowInd, colInd, update);
+    /*
+     * This is the function that allows evaluating a small portion of the graph when obstacles are added or removed dynamically from the environment.
+     */
+    public Solution updateObstacle(final Maze maze, final List<ObstacleUpdateData> obstacleUpdateList) {
+        List<Node> nodes = new ArrayList<>();
+        for (ObstacleUpdateData obstacleUpdateData : obstacleUpdateList) {
+            ObstacleUpdate update = com.uga.mazesolvingagent.models.dto.ObstacleUpdate.ADD
+                    .equals(obstacleUpdateData.getUpdate()) ? ObstacleUpdate.ADD : ObstacleUpdate.REMOVE;
+            maze.updateObstacle(obstacleUpdateData.getRowInd(), obstacleUpdateData.getColInd(), update);
+            nodes.add(maze.getNode(obstacleUpdateData.getRowInd(), obstacleUpdateData.getColInd()));
+        }
         PriorityQueue<Node> queue = new PriorityQueue<>(NODE_PRIORITIZER);
-        Node node = maze.getNode(rowInd, colInd);
-        List<NeighborNode> neighbors = maze.getNeighbors(node);
-        neighbors.stream().forEach(neighborNode -> queue.add(neighborNode.getNode()));
+        for (final Node node : nodes) {
+            List<NeighborNode> neighbors = maze.getNeighbors(node);
+            neighbors.stream().forEach(neighborNode -> queue.add(neighborNode.getNode()));
+        }
         int nodesEvaluated = calculateShortestPath(maze, queue);
-        return Solution.builder().path(getPath(maze)).pathCosts(maze.getPathCosts()).rhsValues(maze.getRhsValues()).nodesEvaluated(nodesEvaluated).build();
+        return Solution.builder().path(getPath(maze)).pathCosts(maze.getPathCosts()).rhsValues(maze.getRhsValues())
+                .nodesEvaluated(nodesEvaluated).build();
     }
 
+    /*
+     * This is the business logic that evaluates a fresh graph where no information is available, i.e, for the first traversal of the graph.
+     */
     public Solution solveMaze(final Maze maze) {
         PriorityQueue<Node> queue = new PriorityQueue<>(NODE_PRIORITIZER);
         queue.add(maze.getStartNode());
